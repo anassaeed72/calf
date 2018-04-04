@@ -94,6 +94,10 @@ static int mac_updating = 1;
 static uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
 static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 
+/* mess related tables */
+#define TABLE_SIZE 200;
+static mess_ft* rtb = NULL;
+
 /* ethernet addresses of ports */
 static struct ether_addr mess_ports_eth_addr[RTE_MAX_ETHPORTS];
 
@@ -206,7 +210,7 @@ mess_mac_updating(struct rte_mbuf *m, unsigned dest_portid)
 }
 
 static void
-mess_simple_forward(struct rte_mbuf *m, unsigned portid)
+middle_man_logic(struct rte_mbuf *m, unsigned portid)
 {
 	unsigned dst_port;
 	int sent;
@@ -302,7 +306,7 @@ mess_main_loop(void)
 		}
 
 		/*
-		 * Read packet from RX queues
+		 * Read packets from RX queues
 		 */
 		for (i = 0; i < qconf->n_rx_port; i++) {
 
@@ -319,13 +323,16 @@ mess_main_loop(void)
 				generate_red_table(m, portid);
 			}
 		}
+               // running middleman or asking middleman to poll this method
+	       middle_man_logic();
 	}
 }
 
 static void
 generate_red_table(struct rte_mbuf *m, unsigned portid)
 {
-	mess_simple_forward(m, portid);
+	
+	int ret = mess_ft_add_pkt(pkt_buf_ft, m);
 }
 
 static int
@@ -561,8 +568,10 @@ int
 main(int argc, char **argv)
 {
 	/* init MESS config */
-    struct mess_config_entry mess_config_entry = NULL;
-	mess_config_entry.
+        struct mess_ct mess_config_table;
+
+	/* init mess_ft_create */
+	mess_ft* rtb = mess_ft_create(TABLE_SIZE, sizeof(struct flow_info));
 
 	struct lcore_queue_conf *qconf;
 	struct rte_eth_dev_info dev_info;

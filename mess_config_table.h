@@ -2,7 +2,7 @@
 #define _CONFIG_TABLE_H_
 
 struct mess_ct {
-        struct flow_table_entry* entry;
+        struct mess_ce* entry;
         char* name;
         int cnt;
         int entry_size;
