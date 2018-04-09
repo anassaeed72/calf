@@ -50,7 +50,7 @@
 #include <rte_common.h>
 #include <rte_log.h>
 #include <rte_malloc.h>
-#include <rte_memory.h>
+#include <rte_memory.h>address
 #include <rte_memcpy.h>
 #include <rte_memzone.h>
 #include <rte_eal.h>
@@ -567,8 +567,14 @@ signal_handler(int signum)
 int
 main(int argc, char **argv)
 {
+    
+
 	/* init MESS config */
-        struct mess_ct mess_config_table;
+    //mess_ce mess_config_entry0 = {"10.0.0.1", "1"};
+    //mess_ce mess_config_entry1 = {"10.0.0.2", "2"};
+    mess_ce mess_config_entry[2] = {{"10.0.0.1", "1", "demo input1"}, {"10.0.0.2", "2", "demo input2"}};
+    //struct mess_ce* entries;
+    //mess_ct mess_config_table = {;
 
 	/* init mess_ft_create */
 	mess_ft* rtb = mess_ft_create(TABLE_SIZE, sizeof(struct flow_info));
