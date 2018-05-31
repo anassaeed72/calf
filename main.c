@@ -319,11 +319,12 @@ mess_main_loop(void)
 				// m = nat(m); 
 				rte_prefetch0(rte_pktmbuf_mtod(m, void *));
 				//mess_simple_forward(m, portid);
-				generate_red_table(m, portid);
+				//generate_red_table(m, portid);
+	       			middle_man_logic(m, portid);
 			}
 		}
                // running middleman or asking middleman to poll this method
-	       middle_man_logic();
+	       //middle_man_logic();
 	}
 }
 
