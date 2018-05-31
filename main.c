@@ -200,7 +200,9 @@ mess_mac_updating(struct rte_mbuf *m, unsigned dest_portid)
 	void *tmp;
 
 	eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
+
 	tmp = &eth->d_addr.addr_bytes[0];
+	*((uint64_t *)tmp) = 1 + ((uint64_t)dest_portid << 40);
 
 	/* src addr */
 	ether_addr_copy(&mess_ports_eth_addr[dest_portid], &eth->s_addr);
@@ -314,9 +316,7 @@ mess_main_loop(void)
 			port_statistics[portid].rx += nb_rx;
 
 			for (j = 0; j < nb_rx; j++) {
-
 				m = pkts_burst[j];
-				// m = nat(m); 
 				rte_prefetch0(rte_pktmbuf_mtod(m, void *));
 				//mess_simple_forward(m, portid);
 				//generate_red_table(m, portid);
@@ -324,7 +324,6 @@ mess_main_loop(void)
 			}
 		}
                // running middleman or asking middleman to poll this method
-	       //middle_man_logic();
 	}
 }
 
