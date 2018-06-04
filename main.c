@@ -70,6 +70,11 @@
 #include <rte_ethdev.h>
 #include <rte_mempool.h>
 #include <rte_mbuf.h>
+#include <rte_ether.h>
+#include <rte_ip.h>
+#include <rte_tcp.h>
+#include <rte_udp.h>
+#include "calf_pkt.h"
 
 static volatile bool force_quit;
 
@@ -187,10 +192,13 @@ print_stats(void)
 	printf("\n====================================================\n");
 }
 
-static void
+static struct calf_pkt* 
 calf_mac_updating(struct rte_mbuf *m, unsigned dest_portid)
 {
+	//create calf_pkt
+	//add to the red table
 	struct ether_hdr *eth;
+        struct ipv4_hdr *ip;
 	void *tmp;
 
 	eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
@@ -198,8 +206,18 @@ calf_mac_updating(struct rte_mbuf *m, unsigned dest_portid)
 	tmp = &eth->d_addr.addr_bytes[0];
 	*((uint64_t *)tmp) = ((uint64_t)dest_portid << 40);
 
+	struct calf_pkt* pkt;
+	ip = (struct ipv4_hdr *)(eth + 1);
+	uint32_t src_addr;
+	uint32_t dst_addr;
+	src_addr = ip->src_addr;
+	dst_addr = ip->dst_addr;
+	uint32_t meta = 0;
+	pkt = calf_pkt_create(m, src_addr, dst_addr, meta);
+
 	/* src addr */
 	ether_addr_copy(&calf_ports_eth_addr[dest_portid], &eth->s_addr);
+	return pkt;
 }
 
 static void
