@@ -75,11 +75,12 @@
 #include <rte_tcp.h>
 #include <rte_udp.h>
 #include "calf_pkt.h"
+#include "lock_free.h"
 
 static volatile bool force_quit;
 
 /* MAC updating enabled by default */
-static int mac_updating = 1;
+static int calf_wrapping = 1;
 
 #define RTE_LOGTYPE_CALF RTE_LOGTYPE_USER1
 
@@ -192,19 +193,19 @@ print_stats(void)
 	printf("\n====================================================\n");
 }
 
-static struct calf_pkt* 
-calf_mac_updating(struct rte_mbuf *m, unsigned dest_portid)
+static struct calf_pkt*
+//calf_wrap(struct rte_mbuf *m, unsigned dest_portid)
+calf_wrap(struct rte_mbuf *m)
 {
 	//create calf_pkt
 	//add to the red table
 	struct ether_hdr *eth;
-        struct ipv4_hdr *ip;
-	void *tmp;
+    struct ipv4_hdr *ip;
+	//void *tmp;
 
 	eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
-
-	tmp = &eth->d_addr.addr_bytes[0];
-	*((uint64_t *)tmp) = ((uint64_t)dest_portid << 40);
+	//tmp = &eth->d_addr.addr_bytes[0];
+	//*((uint64_t *)tmp) = ((uint64_t)dest_portid << 40);
 
 	struct calf_pkt* pkt;
 	ip = (struct ipv4_hdr *)(eth + 1);
@@ -212,28 +213,41 @@ calf_mac_updating(struct rte_mbuf *m, unsigned dest_portid)
 	uint32_t dst_addr;
 	src_addr = ip->src_addr;
 	dst_addr = ip->dst_addr;
-	uint32_t meta = 0;
-	pkt = calf_pkt_create(m, src_addr, dst_addr, meta);
-
+	uint32_t metadata = 0;
+	uint32_t tag = 0;
+	pkt = calf_pkt_create(m, src_addr, dst_addr, metadata, tag);
+	// put pkt into red table
+	// 
 	/* src addr */
-	ether_addr_copy(&calf_ports_eth_addr[dest_portid], &eth->s_addr);
+	//ether_addr_copy(&calf_ports_eth_addr[dest_portid], &eth->s_addr);
 	return pkt;
 }
 
 static void
-calf_simple_forward(struct rte_mbuf *m, unsigned portid)
+calf_forward(struct rte_mbuf *m_rx, unsigned portid)
 {
 	unsigned dst_port;
 	int sent;
+	struct rte_mbuf *m_tx = NULL;
 	struct rte_eth_dev_tx_buffer *buffer;
 
 	dst_port = calf_dst_ports[portid];
+	
+	struct calf_pkt* pkt_rx = NULL;
+	struct calf_pkt* pkt_tx = NULL;
 
-	if (mac_updating)
-		calf_mac_updating(m, dst_port);
+	if (calf_wrapping)
+		pkt_rx = calf_wrap(m_rx);
+	enqueue(pkt_rx);
+
+	void *res = dequeue_tx();
+	pkt_tx = (struct calf_pkt*)(res);
+	if (calf_wrapping) {
+		m_tx = pkt_tx->m;
+	} 
 
 	buffer = tx_buffer[dst_port];
-	sent = rte_eth_tx_buffer(dst_port, 0, buffer, m);
+	sent = rte_eth_tx_buffer(dst_port, 0, buffer, m_tx);
 	if (sent)
 		port_statistics[dst_port].tx += sent;
 }
@@ -258,6 +272,15 @@ calf_main_loop(void)
 
 	lcore_id = rte_lcore_id();
 	qconf = &lcore_queue_conf[lcore_id];
+
+    if (!create_queue()) {
+        fprintf(stderr, "create rx queue error\n");
+        exit(1);
+    }
+    if (!create_queue_tx()) {
+        fprintf(stderr, "create tx queue error\n");
+        exit(1);
+    }
 
 	if (qconf->n_rx_port == 0) {
 		RTE_LOG(INFO, CALF, "lcore %u has nothing to do\n", lcore_id);
@@ -330,7 +353,7 @@ calf_main_loop(void)
 			for (j = 0; j < nb_rx; j++) {
 				m = pkts_burst[j];
 				rte_prefetch0(rte_pktmbuf_mtod(m, void *));
-				calf_simple_forward(m, portid);
+				calf_forward(m, portid);
 			}
 		}
 	}
@@ -415,8 +438,8 @@ static const char short_options[] =
 	"T:"  /* timer period */
 	;
 
-#define CMD_LINE_OPT_MAC_UPDATING "mac-updating"
-#define CMD_LINE_OPT_NO_MAC_UPDATING "no-mac-updating"
+#define CMD_LINE_OPT_MAC_UPDATING "calf-wrapping"
+#define CMD_LINE_OPT_NO_MAC_UPDATING "calf-wrapping"
 
 enum {
 	/* long options mapped to a short option */
@@ -427,8 +450,8 @@ enum {
 };
 
 static const struct option lgopts[] = {
-	{ CMD_LINE_OPT_MAC_UPDATING, no_argument, &mac_updating, 1},
-	{ CMD_LINE_OPT_NO_MAC_UPDATING, no_argument, &mac_updating, 0},
+	{ CMD_LINE_OPT_MAC_UPDATING, no_argument, &calf_wrapping, 1},
+	{ CMD_LINE_OPT_NO_MAC_UPDATING, no_argument, &calf_wrapping, 0},
 	{NULL, 0, 0, 0}
 };
 
@@ -593,7 +616,7 @@ main(int argc, char **argv)
 	if (ret < 0)
 		rte_exit(EXIT_FAILURE, "Invalid CALF arguments\n");
 
-	printf("MAC updating %s\n", mac_updating ? "enabled" : "disabled");
+	printf("calf wrapping %s\n", calf_wrapping ? "enabled" : "disabled");
 
 	/* convert to number of cycles */
 	timer_period *= rte_get_timer_hz();
@@ -606,6 +629,7 @@ main(int argc, char **argv)
 		rte_exit(EXIT_FAILURE, "Cannot init mbuf pool\n");
 
 	nb_ports = rte_eth_dev_count();
+	//nb_ports = 2;
 	if (nb_ports == 0)
 		rte_exit(EXIT_FAILURE, "No Ethernet ports - bye\n");
 
