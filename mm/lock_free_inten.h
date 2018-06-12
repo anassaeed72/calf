@@ -10,10 +10,15 @@ struct node_s {
     void *data;
     uint32_t tag;
 };
-node_t *create_queue(void);
-node_t *enqueue(void * d);
-void* get_calf_pkt(void);
-node_t *create_queue_tx(void);
-node_t *send_calf_pkt(void * d);
-void* dequeue_tx(void);
+typedef struct list_s list;
+struct list_s
+{
+	node_t *head;
+	node_t *tail;
+};
+
+list *create_queue(void);
+node_t* enqueue(void *d, list *_list);
+
+void* dequeue(list* list);
 #endif
