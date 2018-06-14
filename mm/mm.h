@@ -25,7 +25,7 @@ map_node_lock_free_t actor_to_node_mapping;
 void intialize_actor_to_node_mapping();
 int add_actor_to_actor_to_node_mapping(char* actorID);
 int add_actor_to_actor_to_node_mapping_uint32_t(uint32_t actorID);
-list** get_node_from_actor_to_node_mapping(char* actorID);
+list* get_node_from_actor_to_node_mapping(char* actorID);
 
 
 char* convert_uint_32t_to_char(uint32_t input);
